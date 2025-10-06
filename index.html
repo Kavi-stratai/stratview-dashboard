@@ -40,7 +40,6 @@
   input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.15);}
   input::placeholder{color:#94a3b8}
   button.primary{background:linear-gradient(90deg,var(--primary),var(--primary-2));color:#ffffff;font-weight:700;border:none;cursor:pointer;}
-  button.primary:hover{filter:brightness(1.05)}
   button.ghost{background:#ffffff;color:#334155;border:1px solid #e5e7eb;}
   button.ghost:hover{border-color:var(--primary); color:#0f172a}
   table{width:100%;border-collapse:collapse}
@@ -51,14 +50,6 @@
   .muted{color:var(--muted)}
   .footer{display:flex;justify-content:space-between;align-items:center;padding-top:10px}
   .hidden{display:none}
-  .modal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:50}
-  .modal.show{display:flex}
-  .sheet{background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;min-width:480px; max-width:95%;box-shadow:0 20px 60px rgba(0,0,0,.12);}
-  .sheet h3{margin:0 0 12px;color:#0b1220}
-  .row{display:flex;gap:12px}
-  .row > div{flex:1}
-  .sheet label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-  .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
 </style>
 
 </head>
@@ -91,7 +82,7 @@
         <option value="50">50 / page</option>
       </select>
       <button id="rRefresh">Refresh</button>
-      <!--<button class="primary" id="rAdd">Add Report</button> -->
+      <!-- Add Report button removed -->
     </div>
 
     <div class="table-wrap">
@@ -135,7 +126,7 @@
         <option value="50">50 / page</option>
       </select>
       <button id="cRefresh">Refresh</button>
-      <!--<button class="primary" id="cAdd">Add Company</button> -->
+      <!-- Add Company button removed -->
     </div>
 
     <div class="table-wrap">
@@ -219,78 +210,6 @@
   </section>
 </div>
 
-<!-- Add Report Modal -->
-<div id="addModal" class="modal" aria-hidden="true">
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="addTitle">
-    <h3 id="addTitle">Add Report</h3>
-    <div>
-      <label for="mName">Report Name</label>
-      <input id="mName" placeholder="e.g., AI in Drones Market" />
-    </div>
-    <div class="row" style="margin-top:10px">
-      <div>
-        <label for="mRid">Report ID</label>
-        <input id="mRid" type="number" placeholder="e.g., 3977" />
-      </div>
-      <div>
-        <label for="mStatus">Status</label>
-        <select id="mStatus">
-          <option value="Unselected" selected>Unselected</option>
-          <option value="Selected">Selected</option>
-        </select>
-      </div>
-    </div>
-    <div class="actions">
-      <button class="ghost" id="mCancel" type="button">Cancel</button>
-      <button class="primary" id="mSave" type="button">Save</button>
-    </div>
-    <div id="mMsg" class="mono muted"></div>
-  </div>
-</div>
-
-<!-- Add Company Modal -->
-<div id="addCompanyModal" class="modal" aria-hidden="true">
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="addCompanyTitle">
-    <h3 id="addCompanyTitle">Add Company</h3>
-    <div>
-      <label for="cmName">Company Name</label>
-      <input id="cmName" placeholder="e.g., IBM Corporation" />
-    </div>
-    <div class="row" style="margin-top:10px">
-      <div>
-        <label for="cmReportName">Report Name</label>
-        <input id="cmReportName" placeholder="e.g., AI in Supply Chain Management" />
-      </div>
-      <div>
-        <label for="cmRid">Report ID</label>
-        <input id="cmRid" type="number" placeholder="e.g., 3843" />
-      </div>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <div>
-        <label for="cmWebsite">Website</label>
-        <input id="cmWebsite" placeholder="https://www.example.com" />
-      </div>
-      <div>
-        <label for="cmEmployees">Number of employees</label>
-        <input id="cmEmployees" type="number" min="0" placeholder="e.g., 12000" />
-      </div>
-    </div>
-    <div style="margin-top:10px">
-      <label for="cmStatus">Status</label>
-      <select id="cmStatus">
-        <option value="Accepted" selected>Accepted</option>
-        <option value="Rejected">Rejected</option>
-      </select>
-    </div>
-    <div class="actions">
-      <button class="ghost" id="cmCancel" type="button">Cancel</button>
-      <button class="primary" id="cmSave" type="button">Save</button>
-    </div>
-    <div id="cmMsg" class="mono muted"></div>
-  </div>
-</div>
-
 <script>
 /* ====== CONFIG ====== */
 const SUPABASE_URL = 'https://busolzynkwvkjuxcabcb.supabase.co';
@@ -354,35 +273,6 @@ document.getElementById('rSearch').addEventListener('input', debounce(e => { rSe
 document.getElementById('rPrev').addEventListener('click', ()=>{ if(rPage>1){ rPage--; loadReports(); }});
 document.getElementById('rNext').addEventListener('click', ()=>{ rPage++; loadReports(); });
 document.getElementById('rRefresh').addEventListener('click', loadReports);
-document.getElementById('rAdd').addEventListener('click', openModal);
-
-const modal = document.getElementById('addModal');
-const mName = document.getElementById('mName');
-const mRid  = document.getElementById('mRid');
-const mStatus = document.getElementById('mStatus');
-const mMsg = document.getElementById('mMsg');
-
-function openModal(){ mName.value=''; mRid.value=''; mStatus.value='Unselected'; mMsg.textContent=''; modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); setTimeout(()=>mName.focus(),0); }
-function closeModal(){ modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); }
-document.getElementById('mCancel').addEventListener('click', closeModal);
-modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
-document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && modal.classList.contains('show')) closeModal(); });
-
-document.getElementById('mSave').addEventListener('click', onAddReport);
-async function onAddReport(){
-  const name = (mName.value || '').trim();
-  const rid  = (mRid.value || '').trim();
-  const status = (mStatus.value || 'Unselected');
-  if(!name){ mMsg.textContent='Please enter a report name.'; mName.focus(); return; }
-  mMsg.textContent = 'Saving…';
-
-  const row = { [F.name]: name, [F.status]: status };
-  if (rid) row[F.reportId] = parseInt(rid,10);
-
-  const { error } = await sb.from(TABLE_REPORTS).insert(row);
-  if (error){ mMsg.textContent = 'Insert failed: ' + error.message; return; }
-  closeModal(); rPage=1; loadReports();
-}
 
 function titleOfReport(row){
   const name = row[F.name];
@@ -464,7 +354,7 @@ async function loadReports(){
 
 window.handleReportStatusChange = async function(sel){
   const id = sel.dataset.id;
-  const next = sel.value;
+  const next = (sel.value || '').trim();
   const prev = sel.dataset.prev || 'Unselected';
   try{
     sel.disabled = true;
@@ -501,33 +391,8 @@ document.getElementById('cPrev').addEventListener('click', () => {
 document.getElementById('cNext').addEventListener('click', () => { cPage++; loadCompanies(); });
 document.getElementById('cRefresh').addEventListener('click', loadCompanies);
 
-/* Add Company modal */
-const cModal = document.getElementById('addCompanyModal');
-const cmName = document.getElementById('cmName');
-const cmReportName = document.getElementById('cmReportName');
-const cmRid  = document.getElementById('cmRid');
-const cmWebsite = document.getElementById('cmWebsite');
-const cmEmployees = document.getElementById('cmEmployees');
-const cmStatus = document.getElementById('cmStatus');
-const cmMsg = document.getElementById('cmMsg');
-
-document.getElementById('cAdd').addEventListener('click', openCompanyModal);
-document.getElementById('cmCancel').addEventListener('click', closeCompanyModal);
-cModal.addEventListener('click', (e)=>{ if(e.target===cModal) closeCompanyModal(); });
-document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && cModal.classList.contains('show')) closeCompanyModal(); });
-
-function openCompanyModal(){
-  cmName.value=''; cmReportName.value=''; cmRid.value='';
-  cmWebsite.value=''; cmEmployees.value=''; cmStatus.value='Accepted';
-  cmMsg.textContent='';
-  cModal.classList.add('show'); cModal.setAttribute('aria-hidden','false'); setTimeout(()=>cmName.focus(),0);
-}
-function closeCompanyModal(){ cModal.classList.remove('show'); cModal.setAttribute('aria-hidden','true'); }
-
-/* Detect flexible company columns once per session */
-let _companyColsDetected = false;
 async function detectCompanyColumns(){
-  if (_companyColsDetected) return;
+  if (window._companyColsDetected) return;
   try{
     const { data } = await sb.from(TABLE_COMPANIES).select('*').limit(1);
     const cols = data && data.length ? Object.keys(data[0]) : [];
@@ -535,50 +400,18 @@ async function detectCompanyColumns(){
     else if (cols.includes('Linkedin url')) C.website = 'Linkedin url';
     const empCandidates = ['Number of employees','Employees','No of Employees','No. of Employees'];
     C.employees = empCandidates.find(k => cols.includes(k)) || null;
-    _companyColsDetected = true;
-  }catch{ _companyColsDetected = true; }
-}
-
-document.getElementById('cmSave').addEventListener('click', onAddCompany);
-async function onAddCompany(){
-  await detectCompanyColumns();
-
-  const name = (cmName.value||'').trim();
-  const reportName = (cmReportName.value||'').trim();
-  const ridStr = (cmRid.value||'').trim();
-  const website = (cmWebsite.value||'').trim();
-  const empStr = (cmEmployees.value||'').trim();
-  const status = cmStatus.value || 'Accepted';
-
-  if(!name){ cmMsg.textContent='Please enter a company name.'; cmName.focus(); return; }
-  cmMsg.textContent='Saving…';
-
-  const row = { [C.name]: name, [C.status]: status };
-  if (reportName) row[C.reportName] = reportName;
-  if (ridStr) row[C.reportId] = parseInt(ridStr,10);
-  if (website && C.website) row[C.website] = website;
-  if (empStr && C.employees) row[C.employees] = parseInt(empStr,10);
-
-  let attempt = 0, lastError=null, payload={...row};
-  while (attempt < 3){
-    const { error } = await sb.from(TABLE_COMPANIES).insert(payload);
-    if (!error){ closeCompanyModal(); cPage=1; loadCompanies(); return; }
-    lastError = error.message || String(error);
-    const m = /could not find the '([^']+)' column/i.exec(lastError);
-    if (m && payload[m[1]] !== undefined){ delete payload[m[1]]; attempt++; continue; }
-    break;
-  }
-  cmMsg.textContent = 'Insert failed: ' + (lastError || 'Unknown error');
+    window._companyColsDetected = true;
+  }catch{ window._companyColsDetected = true; }
 }
 
 window.updateCompanyStatus = async function(sel){
-  const id = sel.dataset.id, val = sel.value, prev = sel.dataset.prev || 'Accepted';
+  const id = sel.dataset.id, val = (sel.value || '').trim(), prev = sel.dataset.prev || 'Accepted';
   sel.disabled = true;
   const { error } = await sb.from(TABLE_COMPANIES).update({ [C.status]: val }).eq(C.id, id);
   sel.disabled = false;
   if (error){ sel.value=prev; alert('Update failed: '+error.message); return; }
   sel.dataset.prev = val;
-  if (cStatus && val !== cStatus) loadCompanies(); else loadCompanies();
+  loadCompanies();
 };
 
 async function loadCompanies(){
@@ -692,21 +525,14 @@ async function detectLeadColumns(){
     const cols = data && data.length ? Object.keys(data[0]) : [];
     const pick = (arr)=> arr.find(k => cols.includes(k)) || null;
 
-    // ID (supporting alternate headings)
     L.id         = pick(['id','ID','Row ID','S No','S. No','SNo']) || L.id;
-
-    // Common fields
     L.firstName  = pick(['Lead First Name','First Name','First name','Name']) || L.firstName;
     L.email      = pick(['Email','Email id','Email ID','email']) || L.email;
     L.company    = pick(['Company Name','Company']) || L.company;
     L.reportId   = pick(['Report ID','Report Id','ReportID']) || L.reportId;
     L.reportName = pick(['Report Name']) || L.reportName;
     L.linkedin   = pick(['Linkedin url','LinkedIn URL','LinkedIn Url','LinkedIn']) || L.linkedin;
-
-    // Status column variants
     L.status     = pick(['Status','Lead Status','Lead_Status','LeadStatus','Decision','Lead Decision']) || L.status;
-
-    // Score column variants
     L.score      = pick(['Lead Matching Score','Lead Score','Score']) || L.score;
 
     _leadColsDetected = true;
@@ -716,8 +542,8 @@ async function detectLeadColumns(){
 /* Update Status Accepted ⇄ Rejected and persist to Supabase */
 window.updateLeadStatus = async function(sel){
   const id   = sel.dataset.id;
-  const next = sel.value;                // 'Accepted' or 'Rejected'
-  const prev = sel.dataset.prev || '';   // previous
+  const next = (sel.value || '').trim();
+  const prev = sel.dataset.prev || '';
   try{
     sel.disabled = true;
     const { error } = await sb
@@ -728,14 +554,13 @@ window.updateLeadStatus = async function(sel){
     sel.disabled = false;
 
     if (error){
-      sel.value = prev;                 // revert UI
+      sel.value = prev;
       alert('Update failed: ' + error.message);
       return;
     }
 
     sel.dataset.prev = next;
-    // reload so the dropdown flips to the opposite label like Reports tab
-    if (lStatus && next !== lStatus) loadLeads(); else loadLeads();
+    loadLeads();
   }catch(e){
     sel.disabled = false;
     sel.value = prev;
@@ -755,7 +580,6 @@ async function loadLeads(){
 
     if (lStatus) q = q.eq(L.status, lStatus);
 
-    // server-side score filter (if present)
     if (lScoreRange && L.score){
       if (lScoreRange === '0-60'){
         q = q.lte(L.score, 60);
@@ -788,7 +612,6 @@ async function loadLeads(){
       }
     }
 
-    // client-side score safety filter
     if (lScoreRange && L.score){
       const toNum = (v)=> {
         const n = v==null ? NaN : Number(v);
@@ -807,14 +630,12 @@ async function loadLeads(){
       lRows.innerHTML = `<tr><td class="muted" colspan="8">No leads found.</td></tr>`;
     } else {
       lRows.innerHTML = rows.map(r=>{
-        // Fetch CURRENT status from Supabase row
         let current = (r[L.status] || '').trim();
-        if (!current) current = 'Assigned'; // read-only if unassigned
+        if (!current) current = 'Assigned';
 
         const email = r[L.email] ? `<a href="mailto:${safe(r[L.email])}">${safe(r[L.email])}</a>` : '';
         const link  = r[L.linkedin] ? `<a href="${safe(ensureHttp(r[L.linkedin]))}" target="_blank" rel="noopener noreferrer">${safe(r[L.linkedin])}</a>` : '';
 
-        // Status UI
         let statusCell = '';
         if (current === 'Assigned') {
           statusCell = `<span class="mono">Assigned</span>`;
@@ -868,4 +689,3 @@ loadReports();
 </script>
 </body>
 </html>
-
