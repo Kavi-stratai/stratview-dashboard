@@ -174,7 +174,6 @@
         <option value="Accepted">Accepted</option>
         <option value="Rejected">Rejected</option>
       </select>
-      <!-- NEW: Lead Score filter -->
       <select id="lScoreRange" title="Lead Score">
         <option value="">All scores</option>
         <option value="0-60">0–60</option>
@@ -317,7 +316,6 @@ const L = {
   reportName: 'Report Name',
   linkedin: 'Linkedin url',
   status: 'Status',
-  // NEW: score (will be detected)
   score: 'Lead Matching Score'
 };
 
@@ -671,7 +669,7 @@ async function loadCompanies(){
   }
 }
 
-/* -------------------- LEADS -------------------- */
+/* -------------------- LEADS (STATUS FIXED) -------------------- */
 let lPage=1, lLimit=25, lSearch='', lStatus='', lScoreRange='';
 const lRows = document.getElementById('lRows');
 const lInfo = document.getElementById('lInfo');
@@ -685,7 +683,7 @@ document.getElementById('lPrev').addEventListener('click', ()=>{ if(lPage>1){ lP
 document.getElementById('lNext').addEventListener('click', ()=>{ lPage++; loadLeads(); });
 document.getElementById('lRefresh').addEventListener('click', loadLeads);
 
-/* detect flexible column names for Leads */
+/* Flexible column detection for Leads */
 let _leadColsDetected = false;
 async function detectLeadColumns(){
   if (_leadColsDetected) return;
@@ -694,31 +692,55 @@ async function detectLeadColumns(){
     const cols = data && data.length ? Object.keys(data[0]) : [];
     const pick = (arr)=> arr.find(k => cols.includes(k)) || null;
 
+    // ID (supporting alternate headings)
+    L.id         = pick(['id','ID','Row ID','S No','S. No','SNo']) || L.id;
+
+    // Common fields
     L.firstName  = pick(['Lead First Name','First Name','First name','Name']) || L.firstName;
     L.email      = pick(['Email','Email id','Email ID','email']) || L.email;
     L.company    = pick(['Company Name','Company']) || L.company;
     L.reportId   = pick(['Report ID','Report Id','ReportID']) || L.reportId;
     L.reportName = pick(['Report Name']) || L.reportName;
     L.linkedin   = pick(['Linkedin url','LinkedIn URL','LinkedIn Url','LinkedIn']) || L.linkedin;
-    L.status     = pick(['Status']) || L.status;
 
-    // NEW: detect Lead Score column
-    L.score      = pick(['Lead Score','Score','Lead score, Lead Matching Score']) || L.score;
+    // Status column variants
+    L.status     = pick(['Status','Lead Status','Lead_Status','LeadStatus','Decision','Lead Decision']) || L.status;
+
+    // Score column variants
+    L.score      = pick(['Lead Matching Score','Lead Score','Score']) || L.score;
 
     _leadColsDetected = true;
   }catch{ _leadColsDetected = true; }
 }
 
+/* Update Status Accepted ⇄ Rejected and persist to Supabase */
 window.updateLeadStatus = async function(sel){
-  const id = sel.dataset.id;
-  const val = sel.value;
-  const prev = sel.dataset.prev || '';
-  sel.disabled = true;
-  const { error } = await sb.from(TABLE_LEADS).update({ [L.status]: val }).eq(L.id, id);
-  sel.disabled = false;
-  if (error){ sel.value=prev; alert('Update failed: ' + error.message); return; }
-  sel.dataset.prev = val;
-  if (lStatus && val !== lStatus) loadLeads(); else loadLeads();
+  const id   = sel.dataset.id;
+  const next = sel.value;                // 'Accepted' or 'Rejected'
+  const prev = sel.dataset.prev || '';   // previous
+  try{
+    sel.disabled = true;
+    const { error } = await sb
+      .from(TABLE_LEADS)
+      .update({ [L.status]: next })
+      .eq(L.id, id);
+
+    sel.disabled = false;
+
+    if (error){
+      sel.value = prev;                 // revert UI
+      alert('Update failed: ' + error.message);
+      return;
+    }
+
+    sel.dataset.prev = next;
+    // reload so the dropdown flips to the opposite label like Reports tab
+    if (lStatus && next !== lStatus) loadLeads(); else loadLeads();
+  }catch(e){
+    sel.disabled = false;
+    sel.value = prev;
+    alert('Update failed: ' + (e.message || e));
+  }
 };
 
 async function loadLeads(){
@@ -730,9 +752,10 @@ async function loadLeads(){
     let q = sb.from(TABLE_LEADS).select('*', { count:'exact' })
               .order(L.id, { ascending:true })
               .range(from, to);
+
     if (lStatus) q = q.eq(L.status, lStatus);
 
-    // NEW: server-side score filter (only if score column exists)
+    // server-side score filter (if present)
     if (lScoreRange && L.score){
       if (lScoreRange === '0-60'){
         q = q.lte(L.score, 60);
@@ -765,7 +788,7 @@ async function loadLeads(){
       }
     }
 
-    // NEW: client-side score filter safety
+    // client-side score safety filter
     if (lScoreRange && L.score){
       const toNum = (v)=> {
         const n = v==null ? NaN : Number(v);
@@ -784,14 +807,14 @@ async function loadLeads(){
       lRows.innerHTML = `<tr><td class="muted" colspan="8">No leads found.</td></tr>`;
     } else {
       lRows.innerHTML = rows.map(r=>{
-        // Normalize: if empty treat as Assigned (no dropdown)
+        // Fetch CURRENT status from Supabase row
         let current = (r[L.status] || '').trim();
-        if (!current) current = 'Assigned';
+        if (!current) current = 'Assigned'; // read-only if unassigned
 
         const email = r[L.email] ? `<a href="mailto:${safe(r[L.email])}">${safe(r[L.email])}</a>` : '';
         const link  = r[L.linkedin] ? `<a href="${safe(ensureHttp(r[L.linkedin]))}" target="_blank" rel="noopener noreferrer">${safe(r[L.linkedin])}</a>` : '';
 
-        // Status cell per rules
+        // Status UI
         let statusCell = '';
         if (current === 'Assigned') {
           statusCell = `<span class="mono">Assigned</span>`;
