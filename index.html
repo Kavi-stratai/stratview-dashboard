@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Stratview's Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#ffffff;
+    --ink:#0f172a;
+    --muted:#64748b;
+    --line:rgba(0,0,0,.08);
+    --th:#f1f5f9;
+    --ctrl:#f8fafc;
+    --primary:#2563eb;
+    --primary-2:#7c3aed;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial;}
+  a{ color:var(--primary); text-decoration:none; }
+  a:hover{ color:#1d4ed8; text-decoration:none; }
+  .wrap{max-width:1200px;margin:28px auto;padding:0 18px}
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .h1{font-weight:800;font-size:28px;color:#0b1220}
+  .connected{font-size:12px;color:var(--muted)}
+  .tabs{display:flex;gap:24px;border-bottom:2px solid var(--line);margin:12px 0 18px}
+  .tab{padding:10px 0;cursor:pointer;color:#475569;border-bottom:2px solid transparent;transition:color .2s,border .2s}
+  .tab:hover{color:#0f172a}
+  .tab.active{color:#0f172a;border-bottom-color:var(--primary)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  input,select,button{
+    background:#ffffff;color:var(--ink);border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:14px;transition:border-color .2s, box-shadow .2s, background-color .2s;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.15);}
+  input::placeholder{color:#94a3b8}
+  button.primary{background:linear-gradient(90deg,var(--primary),var(--primary-2));color:#ffffff;font-weight:700;border:none;cursor:pointer;}
+  button.primary:hover{filter:brightness(1.05)}
+  button.ghost{background:#ffffff;color:#334155;border:1px solid #e5e7eb;}
+  button.ghost:hover{border-color:var(--primary); color:#0f172a}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:12px 14px;border-bottom:1px solid var(--line);font-size:14px;text-align:left}
+  th{color:#0f172a;font-weight:600;background:var(--th);position:sticky;top:0;z-index:1}
+  tr:hover td{background:var(--ctrl)}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#334155}
+  .muted{color:var(--muted)}
+  .footer{display:flex;justify-content:space-between;align-items:center;padding-top:10px}
+  .hidden{display:none}
+  .modal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:50}
+  .modal.show{display:flex}
+  .sheet{background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;min-width:480px; max-width:95%;box-shadow:0 20px 60px rgba(0,0,0,.12);}
+  .sheet h3{margin:0 0 12px;color:#0b1220}
+  .row{display:flex;gap:12px}
+  .row > div{flex:1}
+  .sheet label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="h1">Stratview's Dashboard</div>
+    <div class="connected" id="connLabel">Connected: —</div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="reports">Reports</div>
+    <div class="tab" data-tab="companies">Companies</div>
+    <div class="tab" data-tab="leads">Leads</div>
+  </div>
+
+  <!-- REPORTS -->
+  <section id="reports" class="card">
+    <div class="controls">
+      <input id="rSearch" placeholder="Search reports by name or ID..." />
+      <select id="rFilter">
+        <option value="">All</option>
+        <option value="Selected">Selected</option>
+        <option value="Unselected">Unselected</option>
+        <option value="Companies Scraped">Companies Scraped</option>
+      </select>
+      <select id="rLimit">
+        <option value="10">10 / page</option>
+        <option value="25" selected>25 / page</option>
+        <option value="50">50 / page</option>
+      </select>
+      <button id="rRefresh">Refresh</button>
+      <button class="primary" id="rAdd">Add Report</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40%">Report Name</th>
+            <th>Report ID</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="rRows">
+          <tr><td class="muted" colspan="3">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <div class="mono" id="rInfo">Ready.</div>
+      <div>
+        <button class="ghost" id="rPrev">◀ Prev</button>
+        <span class="muted" id="rPage">Page 1</span>
+        <button class="ghost" id="rNext">Next ▶</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPANIES -->
+  <section id="companies" class="card hidden">
+    <div class="controls">
+      <input id="cSearch" placeholder="Search company / report / ID" />
+      <select id="cStatus">
+        <option value="">All status</option>
+        <option value="Accepted">Accepted</option>
+        <option value="Rejected">Rejected</option>
+        <option value="Leads Scraped">Leads Scraped</option>
+      </select>
+      <select id="cLimit">
+        <option value="10">10 / page</option>
+        <option value="25" selected>25 / page</option>
+        <option value="50">50 / page</option>
+      </select>
+      <button id="cRefresh">Refresh</button>
+      <button class="primary" id="cAdd">Add Company</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+        <tr>
+          <th style="width:34%">Company</th>
+          <th>Report ID</th>
+          <th>Report Name</th>
+          <th>Status</th>
+        </tr>
+        </thead>
+        <tbody id="cRows">
+        <tr><td class="muted" colspan="4">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <div class="mono" id="cInfo">Ready.</div>
+      <div>
+        <button class="ghost" id="cPrev">◀ Prev</button>
+        <span class="muted" id="cPage">Page 1</span>
+        <button class="ghost" id="cNext">Next ▶</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEADS -->
+  <section id="leads" class="card hidden">
+    <div class="controls">
+      <input id="lSearch" placeholder="Search lead / email / company / report" />
+      <select id="lStatus">
+        <option value="">All status</option>
+        <option value="Assigned">Assigned</option>
+        <option value="Accepted">Accepted</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+      <!-- NEW: Lead Score filter -->
+      <select id="lScoreRange" title="Lead Score">
+        <option value="">All scores</option>
+        <option value="0-60">0–60</option>
+        <option value="61-80">61–80</option>
+        <option value="80+">80 above</option>
+      </select>
+      <select id="lLimit">
+        <option value="10">10 / page</option>
+        <option value="25" selected>25 / page</option>
+        <option value="50">50 / page</option>
+      </select>
+      <button id="lRefresh">Refresh</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>First Name</th>
+            <th>Email</th>
+            <th>Company</th>
+            <th>Report ID</th>
+            <th>Report Name</th>
+            <th>LinkedIn URL</th>
+            <th>Lead Score</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="lRows">
+          <tr><td class="muted" colspan="8">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <div class="mono" id="lInfo">Ready.</div>
+      <div>
+        <button class="ghost" id="lPrev">◀ Prev</button>
+        <span class="muted" id="lPage">Page 1</span>
+        <button class="ghost" id="lNext">Next ▶</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Add Report Modal -->
+<div id="addModal" class="modal" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+    <h3 id="addTitle">Add Report</h3>
+    <div>
+      <label for="mName">Report Name</label>
+      <input id="mName" placeholder="e.g., AI in Drones Market" />
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div>
+        <label for="mRid">Report ID</label>
+        <input id="mRid" type="number" placeholder="e.g., 3977" />
+      </div>
+      <div>
+        <label for="mStatus">Status</label>
+        <select id="mStatus">
+          <option value="Unselected" selected>Unselected</option>
+          <option value="Selected">Selected</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="ghost" id="mCancel" type="button">Cancel</button>
+      <button class="primary" id="mSave" type="button">Save</button>
+    </div>
+    <div id="mMsg" class="mono muted"></div>
+  </div>
+</div>
+
+<!-- Add Company Modal -->
+<div id="addCompanyModal" class="modal" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="addCompanyTitle">
+    <h3 id="addCompanyTitle">Add Company</h3>
+    <div>
+      <label for="cmName">Company Name</label>
+      <input id="cmName" placeholder="e.g., IBM Corporation" />
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div>
+        <label for="cmReportName">Report Name</label>
+        <input id="cmReportName" placeholder="e.g., AI in Supply Chain Management" />
+      </div>
+      <div>
+        <label for="cmRid">Report ID</label>
+        <input id="cmRid" type="number" placeholder="e.g., 3843" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div>
+        <label for="cmWebsite">Website</label>
+        <input id="cmWebsite" placeholder="https://www.example.com" />
+      </div>
+      <div>
+        <label for="cmEmployees">Number of employees</label>
+        <input id="cmEmployees" type="number" min="0" placeholder="e.g., 12000" />
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <label for="cmStatus">Status</label>
+      <select id="cmStatus">
+        <option value="Accepted" selected>Accepted</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="ghost" id="cmCancel" type="button">Cancel</button>
+      <button class="primary" id="cmSave" type="button">Save</button>
+    </div>
+    <div id="cmMsg" class="mono muted"></div>
+  </div>
+</div>
+
+<script>
+/* ====== CONFIG ====== */
+const SUPABASE_URL = 'https://busolzynkwvkjuxcabcb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1c29senlua3d2a2p1eGNhYmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2NzQwOTMsImV4cCI6MjA2ODI1MDA5M30.ZxMIVpWHNVI1HzlxoHHpW5IbZAK8vsUjsDurRpwIS6E';
+
+const TABLE_REPORTS    = '1. Report List';
+const TABLE_COMPANIES  = '2. Company List';
+const TABLE_LEADS      = '3. Lead List';
+
+/* REPORT columns */
+const F = { id:'id', reportId:'Report ID', name:'Report Name', status:'Status' };
+
+/* COMPANY columns (flexible detection kept) */
+const C = { id:'id', name:'Company Name', reportName:'Report Name', reportId:'Report ID', website:null, employees:null, status:'Status' };
+
+/* LEAD columns */
+const L = {
+  id: 'id',
+  firstName: 'First Name',
+  email: 'Email',
+  company: 'Company',
+  reportId: 'Report ID',
+  reportName: 'Report Name',
+  linkedin: 'Linkedin url',
+  status: 'Status',
+  // NEW: score (will be detected)
+  score: 'Lead Matching Score'
+};
+
+/* ====== client + tabs ====== */
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+document.getElementById('connLabel').textContent = `Connected: ${new URL(SUPABASE_URL).host}`;
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.tab).classList.remove('hidden');
+
+    if (t.dataset.tab === 'companies') { detectCompanyColumns().then(loadCompanies); }
+    if (t.dataset.tab === 'leads') { detectLeadColumns().then(loadLeads); }
+  });
+});
+
+/* ====== helpers ====== */
+function safe(v){
+  return String(v==null?'':v).replace(/[&<>\"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+function debounce(fn, delay){ let to; return (...a)=>{ clearTimeout(to); to=setTimeout(()=>fn(...a),delay); }; }
+function ensureHttp(u){ if(!u) return ''; return /^https?:\/\//i.test(u) ? u : `https://${u}`; }
+
+/* -------------------- REPORTS -------------------- */
+let rPage=1, rLimit=25, rFilter='', rSearch='';
+const rRows = document.getElementById('rRows');
+const rInfo = document.getElementById('rInfo');
+const rPageLbl = document.getElementById('rPage');
+
+document.getElementById('rLimit').addEventListener('change', e => { rLimit=parseInt(e.target.value,10); rPage=1; loadReports(); });
+document.getElementById('rFilter').addEventListener('change', e => { rFilter=e.target.value; rPage=1; loadReports(); });
+document.getElementById('rSearch').addEventListener('input', debounce(e => { rSearch=(e.target.value||'').trim(); rPage=1; loadReports(); }, 300));
+document.getElementById('rPrev').addEventListener('click', ()=>{ if(rPage>1){ rPage--; loadReports(); }});
+document.getElementById('rNext').addEventListener('click', ()=>{ rPage++; loadReports(); });
+document.getElementById('rRefresh').addEventListener('click', loadReports);
+document.getElementById('rAdd').addEventListener('click', openModal);
+
+const modal = document.getElementById('addModal');
+const mName = document.getElementById('mName');
+const mRid  = document.getElementById('mRid');
+const mStatus = document.getElementById('mStatus');
+const mMsg = document.getElementById('mMsg');
+
+function openModal(){ mName.value=''; mRid.value=''; mStatus.value='Unselected'; mMsg.textContent=''; modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); setTimeout(()=>mName.focus(),0); }
+function closeModal(){ modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); }
+document.getElementById('mCancel').addEventListener('click', closeModal);
+modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && modal.classList.contains('show')) closeModal(); });
+
+document.getElementById('mSave').addEventListener('click', onAddReport);
+async function onAddReport(){
+  const name = (mName.value || '').trim();
+  const rid  = (mRid.value || '').trim();
+  const status = (mStatus.value || 'Unselected');
+  if(!name){ mMsg.textContent='Please enter a report name.'; mName.focus(); return; }
+  mMsg.textContent = 'Saving…';
+
+  const row = { [F.name]: name, [F.status]: status };
+  if (rid) row[F.reportId] = parseInt(rid,10);
+
+  const { error } = await sb.from(TABLE_REPORTS).insert(row);
+  if (error){ mMsg.textContent = 'Insert failed: ' + error.message; return; }
+  closeModal(); rPage=1; loadReports();
+}
+
+function titleOfReport(row){
+  const name = row[F.name];
+  const rid  = row[F.reportId] ?? row[F.id];
+  const title = name || `Report ${rid}`;
+  return safe(title);
+}
+
+async function loadReports(){
+  try{
+    rRows.innerHTML = `<tr><td class="muted" colspan="3">Loading…</td></tr>`;
+    const from = (rPage-1)*rLimit, to = from + rLimit - 1;
+
+    let q = sb.from(TABLE_REPORTS).select('*', { count: 'exact' })
+             .order(F.id, { ascending: true })
+             .range(from, to);
+
+    if (rFilter) q = q.eq(F.status, rFilter);
+
+    const { data, error, count } = await q;
+    if (error) throw error;
+
+    let rows = data || [];
+    const query = (rSearch || '').trim();
+    if (query){
+      const isNumeric = /^\d+$/.test(query);
+      if (isNumeric){
+        rows = rows.filter(r =>
+          String(r[F.reportId] ?? '').includes(query) || String(r[F.id] ?? '').includes(query)
+        );
+      } else if (query.length >= 2){
+        const s = query.toLowerCase();
+        rows = rows.filter(r => String(r[F.name]||'').toLowerCase().includes(s));
+      }
+    }
+
+    if (!rows.length){
+      rRows.innerHTML = `<tr><td class="muted" colspan="3">No ${rFilter? rFilter.toLowerCase(): ''} reports.</td></tr>`;
+    } else {
+      rRows.innerHTML = rows.map(r=>{
+        let current = String(r[F.status] ?? '').trim();
+        if (!current) current = 'Unselected';
+
+        const idVal = r[F.id];
+        let statusCell = '';
+        if (current === 'Companies Scraped') {
+          statusCell = `<span class="mono">Companies Scraped</span>`;
+        } else if (current === 'Selected') {
+          statusCell = `
+            <select class="status-dd" data-id="${idVal}" data-prev="Selected" onchange="handleReportStatusChange(this)">
+              <option value="" selected disabled>Selected</option>
+              <option value="Unselected">Unselected</option>
+            </select>`;
+        } else {
+          statusCell = `
+            <select class="status-dd" data-id="${idVal}" data-prev="Unselected" onchange="handleReportStatusChange(this)">
+              <option value="" selected disabled>Unselected</option>
+              <option value="Selected">Selected</option>
+            </select>`;
+        }
+
+        return `
+          <tr>
+            <td>${titleOfReport(r)}</td>
+            <td class="mono">${safe(r[F.reportId] ?? '')}</td>
+            <td>${statusCell}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    rPageLbl.textContent = `Page ${rPage}`;
+    rInfo.textContent = `Showing ${rows.length} of ${count ?? rows.length}` + (rFilter ? ` • Filter: ${rFilter}` : '');
+  }catch(err){
+    console.error(err);
+    rRows.innerHTML = `<tr><td class="muted" colspan="3">Error: ${safe(err.message||err)}</td></tr>`;
+    rInfo.textContent = 'Request failed — check RLS (SELECT/INSERT/UPDATE) and CORS.';
+  }
+}
+
+window.handleReportStatusChange = async function(sel){
+  const id = sel.dataset.id;
+  const next = sel.value;
+  const prev = sel.dataset.prev || 'Unselected';
+  try{
+    sel.disabled = true;
+    const { error } = await sb.from(TABLE_REPORTS).update({ [F.status]: next }).eq(F.id, id);
+    sel.disabled = false;
+    if (error){ sel.value = prev; alert('Update failed: ' + error.message); return; }
+    sel.dataset.prev = next;
+    loadReports();
+  } catch(e){
+    sel.disabled=false; sel.value=prev; alert('Update failed: ' + (e.message||e));
+  }
+};
+
+loadReports();
+
+/* -------------------- COMPANIES -------------------- */
+let cPage=1, cLimit=25, cSearch='', cStatus='';
+const cRows = document.getElementById('cRows');
+const cInfo = document.getElementById('cInfo');
+const cPageLbl = document.getElementById('cPage');
+
+document.getElementById('cLimit').addEventListener('change', e => {
+  cLimit = parseInt(e.target.value, 10); cPage = 1; loadCompanies();
+});
+document.getElementById('cSearch').addEventListener('input', debounce(e => {
+  cSearch = (e.target.value || '').trim(); cPage = 1; loadCompanies();
+}, 300));
+document.getElementById('cStatus').addEventListener('change', e => {
+  cStatus = e.target.value; cPage = 1; loadCompanies();
+});
+document.getElementById('cPrev').addEventListener('click', () => {
+  if (cPage > 1) { cPage--; loadCompanies(); }
+});
+document.getElementById('cNext').addEventListener('click', () => { cPage++; loadCompanies(); });
+document.getElementById('cRefresh').addEventListener('click', loadCompanies);
+
+/* Add Company modal */
+const cModal = document.getElementById('addCompanyModal');
+const cmName = document.getElementById('cmName');
+const cmReportName = document.getElementById('cmReportName');
+const cmRid  = document.getElementById('cmRid');
+const cmWebsite = document.getElementById('cmWebsite');
+const cmEmployees = document.getElementById('cmEmployees');
+const cmStatus = document.getElementById('cmStatus');
+const cmMsg = document.getElementById('cmMsg');
+
+document.getElementById('cAdd').addEventListener('click', openCompanyModal);
+document.getElementById('cmCancel').addEventListener('click', closeCompanyModal);
+cModal.addEventListener('click', (e)=>{ if(e.target===cModal) closeCompanyModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && cModal.classList.contains('show')) closeCompanyModal(); });
+
+function openCompanyModal(){
+  cmName.value=''; cmReportName.value=''; cmRid.value='';
+  cmWebsite.value=''; cmEmployees.value=''; cmStatus.value='Accepted';
+  cmMsg.textContent='';
+  cModal.classList.add('show'); cModal.setAttribute('aria-hidden','false'); setTimeout(()=>cmName.focus(),0);
+}
+function closeCompanyModal(){ cModal.classList.remove('show'); cModal.setAttribute('aria-hidden','true'); }
+
+/* Detect flexible company columns once per session */
+let _companyColsDetected = false;
+async function detectCompanyColumns(){
+  if (_companyColsDetected) return;
+  try{
+    const { data } = await sb.from(TABLE_COMPANIES).select('*').limit(1);
+    const cols = data && data.length ? Object.keys(data[0]) : [];
+    if (cols.includes('Website')) C.website = 'Website';
+    else if (cols.includes('Linkedin url')) C.website = 'Linkedin url';
+    const empCandidates = ['Number of employees','Employees','No of Employees','No. of Employees'];
+    C.employees = empCandidates.find(k => cols.includes(k)) || null;
+    _companyColsDetected = true;
+  }catch{ _companyColsDetected = true; }
+}
+
+document.getElementById('cmSave').addEventListener('click', onAddCompany);
+async function onAddCompany(){
+  await detectCompanyColumns();
+
+  const name = (cmName.value||'').trim();
+  const reportName = (cmReportName.value||'').trim();
+  const ridStr = (cmRid.value||'').trim();
+  const website = (cmWebsite.value||'').trim();
+  const empStr = (cmEmployees.value||'').trim();
+  const status = cmStatus.value || 'Accepted';
+
+  if(!name){ cmMsg.textContent='Please enter a company name.'; cmName.focus(); return; }
+  cmMsg.textContent='Saving…';
+
+  const row = { [C.name]: name, [C.status]: status };
+  if (reportName) row[C.reportName] = reportName;
+  if (ridStr) row[C.reportId] = parseInt(ridStr,10);
+  if (website && C.website) row[C.website] = website;
+  if (empStr && C.employees) row[C.employees] = parseInt(empStr,10);
+
+  let attempt = 0, lastError=null, payload={...row};
+  while (attempt < 3){
+    const { error } = await sb.from(TABLE_COMPANIES).insert(payload);
+    if (!error){ closeCompanyModal(); cPage=1; loadCompanies(); return; }
+    lastError = error.message || String(error);
+    const m = /could not find the '([^']+)' column/i.exec(lastError);
+    if (m && payload[m[1]] !== undefined){ delete payload[m[1]]; attempt++; continue; }
+    break;
+  }
+  cmMsg.textContent = 'Insert failed: ' + (lastError || 'Unknown error');
+}
+
+window.updateCompanyStatus = async function(sel){
+  const id = sel.dataset.id, val = sel.value, prev = sel.dataset.prev || 'Accepted';
+  sel.disabled = true;
+  const { error } = await sb.from(TABLE_COMPANIES).update({ [C.status]: val }).eq(C.id, id);
+  sel.disabled = false;
+  if (error){ sel.value=prev; alert('Update failed: '+error.message); return; }
+  sel.dataset.prev = val;
+  if (cStatus && val !== cStatus) loadCompanies(); else loadCompanies();
+};
+
+async function loadCompanies(){
+  try{
+    await detectCompanyColumns();
+    cRows.innerHTML = `<tr><td class="muted" colspan="4">Loading…</td></tr>`;
+    const from = (cPage-1) * cLimit, to = from + cLimit - 1;
+
+    let q = sb.from(TABLE_COMPANIES).select('*', { count: 'exact' })
+             .order(C.id, { ascending: true })
+             .range(from, to);
+
+    if (cStatus) q = q.eq(C.status, cStatus);
+
+    const { data: companies, error, count } = await q;
+    if (error) throw error;
+
+    const needNames = (companies||[]).filter(r => !r[C.reportName] && r[C.reportId]!=null).map(r => r[C.reportId]);
+    let reportNameById = {};
+    if (needNames.length){
+      const { data: rdata } = await sb.from(TABLE_REPORTS).select(`"${F.reportId}", "${F.name}"`).in(F.reportId, [...new Set(needNames)]);
+      (rdata||[]).forEach(r => reportNameById[r[F.reportId]] = r[F.name] || '');
+    }
+
+    let rows = companies || [];
+    const qstr = (cSearch||'').trim();
+    if (qstr){
+      const isNumeric = /^\d+$/.test(qstr);
+      if (isNumeric){
+        rows = rows.filter(r => String(r[C.reportId] ?? '').includes(qstr) || String(r[C.id] ?? '').includes(qstr));
+      } else if (qstr.length >= 2){
+        const s = qstr.toLowerCase();
+        rows = rows.filter(r =>
+          String(r[C.name]||'').toLowerCase().includes(s) ||
+          String(r[C.reportName] || reportNameById[r[C.reportId]] || '').toLowerCase().includes(s)
+        );
+      }
+    }
+
+    if (!rows.length){
+      cRows.innerHTML = `<tr><td class="muted" colspan="4">No companies found.</td></tr>`;
+    } else {
+      cRows.innerHTML = rows.map(row=>{
+        const rid = row[C.reportId];
+        const rname = row[C.reportName] || reportNameById[rid] || '—';
+        let current = (row[C.status] || '').trim();
+        if (!current) current = 'Accepted';
+
+        let statusCell = '';
+        if (current === 'Leads Scraped') {
+          statusCell = `<span class="mono">Leads Scraped</span>`;
+        } else if (current === 'Accepted') {
+          statusCell = `
+            <select data-id="${row[C.id]}" data-prev="Accepted" onchange="updateCompanyStatus(this)">
+              <option value="" selected disabled>Accepted</option>
+              <option value="Rejected">Rejected</option>
+            </select>`;
+        } else if (current === 'Rejected') {
+          statusCell = `
+            <select data-id="${row[C.id]}" data-prev="Rejected" onchange="updateCompanyStatus(this)">
+              <option value="" selected disabled>Rejected</option>
+              <option value="Accepted">Accepted</option>
+            </select>`;
+        } else {
+          statusCell = `<span class="mono">${safe(current)}</span>`;
+        }
+
+        return `
+          <tr>
+            <td>${safe(row[C.name]||'')}</td>
+            <td class="mono">${safe(rid ?? '')}</td>
+            <td>${safe(rname)}</td>
+            <td>${statusCell}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    cPageLbl.textContent = `Page ${cPage}`;
+    const shown = rows ? rows.length : 0;
+    cInfo.textContent = `Showing ${shown} of ${count || 0}` +
+      (cStatus ? ` • Status=${cStatus}` : '') +
+      (cSearch ? ` • “${cSearch}”` : '');
+
+  }catch(err){
+    console.error(err);
+    cRows.innerHTML = `<tr><td class="muted" colspan="4">Error: ${safe(err.message||err)}</td></tr>`;
+    cInfo.textContent = 'Request failed — check SELECT/UPDATE RLS for "2. Company List".';
+  }
+}
+
+/* -------------------- LEADS -------------------- */
+let lPage=1, lLimit=25, lSearch='', lStatus='', lScoreRange='';
+const lRows = document.getElementById('lRows');
+const lInfo = document.getElementById('lInfo');
+const lPageLbl = document.getElementById('lPage');
+
+document.getElementById('lLimit').addEventListener('change', e => { lLimit=parseInt(e.target.value,10); lPage=1; loadLeads(); });
+document.getElementById('lSearch').addEventListener('input', debounce(e => { lSearch=(e.target.value||'').trim(); lPage=1; loadLeads(); }, 300));
+document.getElementById('lStatus').addEventListener('change', e => { lStatus=e.target.value; lPage=1; loadLeads(); });
+document.getElementById('lScoreRange').addEventListener('change', e => { lScoreRange=e.target.value; lPage=1; loadLeads(); });
+document.getElementById('lPrev').addEventListener('click', ()=>{ if(lPage>1){ lPage--; loadLeads(); }});
+document.getElementById('lNext').addEventListener('click', ()=>{ lPage++; loadLeads(); });
+document.getElementById('lRefresh').addEventListener('click', loadLeads);
+
+/* detect flexible column names for Leads */
+let _leadColsDetected = false;
+async function detectLeadColumns(){
+  if (_leadColsDetected) return;
+  try{
+    const { data } = await sb.from(TABLE_LEADS).select('*').limit(1);
+    const cols = data && data.length ? Object.keys(data[0]) : [];
+    const pick = (arr)=> arr.find(k => cols.includes(k)) || null;
+
+    L.firstName  = pick(['Lead First Name','First Name','First name','Name']) || L.firstName;
+    L.email      = pick(['Email','Email id','Email ID','email']) || L.email;
+    L.company    = pick(['Company Name','Company']) || L.company;
+    L.reportId   = pick(['Report ID','Report Id','ReportID']) || L.reportId;
+    L.reportName = pick(['Report Name']) || L.reportName;
+    L.linkedin   = pick(['Linkedin url','LinkedIn URL','LinkedIn Url','LinkedIn']) || L.linkedin;
+    L.status     = pick(['Status']) || L.status;
+
+    // NEW: detect Lead Score column
+    L.score      = pick(['Lead Score','Score','Lead score, Lead Matching Score']) || L.score;
+
+    _leadColsDetected = true;
+  }catch{ _leadColsDetected = true; }
+}
+
+window.updateLeadStatus = async function(sel){
+  const id = sel.dataset.id;
+  const val = sel.value;
+  const prev = sel.dataset.prev || '';
+  sel.disabled = true;
+  const { error } = await sb.from(TABLE_LEADS).update({ [L.status]: val }).eq(L.id, id);
+  sel.disabled = false;
+  if (error){ sel.value=prev; alert('Update failed: ' + error.message); return; }
+  sel.dataset.prev = val;
+  if (lStatus && val !== lStatus) loadLeads(); else loadLeads();
+};
+
+async function loadLeads(){
+  try{
+    await detectLeadColumns();
+    lRows.innerHTML = `<tr><td class="muted" colspan="8">Loading…</td></tr>`;
+
+    const from = (lPage-1) * lLimit, to = from + lLimit - 1;
+    let q = sb.from(TABLE_LEADS).select('*', { count:'exact' })
+              .order(L.id, { ascending:true })
+              .range(from, to);
+    if (lStatus) q = q.eq(L.status, lStatus);
+
+    // NEW: server-side score filter (only if score column exists)
+    if (lScoreRange && L.score){
+      if (lScoreRange === '0-60'){
+        q = q.lte(L.score, 60);
+      } else if (lScoreRange === '61-80'){
+        q = q.gte(L.score, 61).lte(L.score, 80);
+      } else if (lScoreRange === '80+'){
+        q = q.gte(L.score, 80);
+      }
+    }
+
+    const { data: leads, error, count } = await q;
+    if (error) throw error;
+
+    let rows = leads || [];
+    const query = (lSearch||'').trim();
+    if (query){
+      const isNumeric = /^\d+$/.test(query);
+      if (isNumeric){
+        rows = rows.filter(r =>
+          String(r[L.reportId] ?? '').includes(query) || String(r[L.id] ?? '').includes(query)
+        );
+      } else if (query.length >= 2){
+        const s = query.toLowerCase();
+        rows = rows.filter(r =>
+          String(r[L.firstName]||'').toLowerCase().includes(s) ||
+          String(r[L.email]||'').toLowerCase().includes(s) ||
+          String(r[L.company]||'').toLowerCase().includes(s) ||
+          String(r[L.reportName]||'').toLowerCase().includes(s)
+        );
+      }
+    }
+
+    // NEW: client-side score filter safety
+    if (lScoreRange && L.score){
+      const toNum = (v)=> {
+        const n = v==null ? NaN : Number(v);
+        return Number.isFinite(n) ? n : NaN;
+      };
+      if (lScoreRange === '0-60'){
+        rows = rows.filter(r => { const n = toNum(r[L.score]); return !Number.isNaN(n) && n >= 0 && n <= 60; });
+      } else if (lScoreRange === '61-80'){
+        rows = rows.filter(r => { const n = toNum(r[L.score]); return !Number.isNaN(n) && n >= 61 && n <= 80; });
+      } else if (lScoreRange === '80+'){
+        rows = rows.filter(r => { const n = toNum(r[L.score]); return !Number.isNaN(n) && n >= 80; });
+      }
+    }
+
+    if (!rows.length){
+      lRows.innerHTML = `<tr><td class="muted" colspan="8">No leads found.</td></tr>`;
+    } else {
+      lRows.innerHTML = rows.map(r=>{
+        // Normalize: if empty treat as Assigned (no dropdown)
+        let current = (r[L.status] || '').trim();
+        if (!current) current = 'Assigned';
+
+        const email = r[L.email] ? `<a href="mailto:${safe(r[L.email])}">${safe(r[L.email])}</a>` : '';
+        const link  = r[L.linkedin] ? `<a href="${safe(ensureHttp(r[L.linkedin]))}" target="_blank" rel="noopener noreferrer">${safe(r[L.linkedin])}</a>` : '';
+
+        // Status cell per rules
+        let statusCell = '';
+        if (current === 'Assigned') {
+          statusCell = `<span class="mono">Assigned</span>`;
+        } else if (current === 'Accepted') {
+          statusCell = `
+            <select data-id="${r[L.id]}" data-prev="Accepted" onchange="updateLeadStatus(this)">
+              <option value="" selected disabled>Accepted</option>
+              <option value="Rejected">Rejected</option>
+            </select>`;
+        } else if (current === 'Rejected') {
+          statusCell = `
+            <select data-id="${r[L.id]}" data-prev="Rejected" onchange="updateLeadStatus(this)">
+              <option value="" selected disabled>Rejected</option>
+              <option value="Accepted">Accepted</option>
+            </select>`;
+        } else {
+          statusCell = `<span class="mono">${safe(current)}</span>`;
+        }
+
+        const scoreVal = (L.score && r[L.score] != null) ? safe(r[L.score]) : '—';
+
+        return `
+          <tr>
+            <td>${safe(r[L.firstName] || '')}</td>
+            <td>${email}</td>
+            <td>${safe(r[L.company] || '')}</td>
+            <td class="mono">${safe(r[L.reportId] ?? '')}</td>
+            <td>${safe(r[L.reportName] || '')}</td>
+            <td class="mono">${link || '—'}</td>
+            <td class="mono">${scoreVal}</td>
+            <td>${statusCell}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    lPageLbl.textContent = `Page ${lPage}`;
+    lInfo.textContent = `Showing ${rows.length} of ${count || 0}` +
+      (lStatus ? ` • Status=${lStatus}` : '') +
+      (lScoreRange ? ` • Score=${lScoreRange}` : '') +
+      (lSearch ? ` • “${lSearch}”` : '');
+
+  }catch(err){
+    console.error(err);
+    lRows.innerHTML = `<tr><td class="muted" colspan="8">Error: ${safe(err.message||err)}</td></tr>`;
+    lInfo.textContent = 'Request failed — check SELECT/UPDATE RLS for "3. Lead List".';
+  }
+}
+
+/* initial load */
+loadReports();
+</script>
+</body>
+</html>
